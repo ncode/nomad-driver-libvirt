@@ -110,14 +110,10 @@ type TaskLogger struct {
 
 // IsRunning will return true as long as one rotator wrapper is still running
 func (tl *TaskLogger) IsRunning() bool {
-	if tl.lro != nil && tl.lro.isRunning() {
-		return true
-	}
-	if tl.lre != nil && tl.lre.isRunning() {
-		return true
-	}
+	lroRunning := tl.lro != nil && tl.lro.isRunning()
+	lreRunning := tl.lre != nil && tl.lre.isRunning()
 
-	return false
+	return lroRunning && lreRunning
 }
 
 func (tl *TaskLogger) Close() {
@@ -204,10 +200,8 @@ func newLogRotatorWrapper(path string, logger hclog.Logger, rotator io.WriteClos
 	var openFn func() (io.ReadCloser, error)
 	var err error
 
-	//FIXME Revert #5990 and check os.IsNotExist once Go >= 1.12 is the
-	// release compiler.
 	_, serr := os.Stat(path)
-	if serr != nil {
+	if os.IsNotExist(serr) {
 		openFn, err = fifo.CreateAndRead(path)
 	} else {
 		openFn = func() (io.ReadCloser, error) {
@@ -216,7 +210,7 @@ func newLogRotatorWrapper(path string, logger hclog.Logger, rotator io.WriteClos
 	}
 
 	if err != nil {
-		logger.Error("Failed to create FIFO", "stat_error", serr, "create_err", err)
+		logger.Error("failed to create FIFO", "stat_error", serr, "create_err", err)
 		return nil, fmt.Errorf("failed to create fifo for extracting logs: %v", err)
 	}
 
@@ -259,7 +253,6 @@ func (l *logRotatorWrapper) start(openFn func() (io.ReadCloser, error)) {
 			reader.Close()
 		}
 	}()
-	return
 }
 
 // Close closes the rotator and the process writer to ensure that the Wait

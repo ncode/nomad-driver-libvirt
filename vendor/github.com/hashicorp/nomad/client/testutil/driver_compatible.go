@@ -3,7 +3,6 @@ package testutil
 import (
 	"os/exec"
 	"runtime"
-	"sync"
 	"syscall"
 	"testing"
 
@@ -14,6 +13,14 @@ import (
 func RequireRoot(t *testing.T) {
 	if syscall.Geteuid() != 0 {
 		t.Skip("Must run as root on Unix")
+	}
+}
+
+// RequireConsul skips tests unless a Consul binary is available on $PATH.
+func RequireConsul(t *testing.T) {
+	_, err := exec.Command("consul", "version").CombinedOutput()
+	if err != nil {
+		t.Skipf("Test requires Consul: %v", err)
 	}
 }
 
@@ -46,27 +53,6 @@ func CgroupCompatible(t *testing.T) {
 	mount, err := fingerprint.FindCgroupMountpointDir()
 	if err != nil || mount == "" {
 		t.Skipf("Failed to find cgroup mount: %v %v", mount, err)
-	}
-}
-
-var rktExists bool
-var rktOnce sync.Once
-
-func RktCompatible(t *testing.T) {
-	if runtime.GOOS != "linux" || syscall.Geteuid() != 0 {
-		t.Skip("Must be root on Linux to run test")
-	}
-
-	// else see if rkt exists
-	rktOnce.Do(func() {
-		_, err := exec.Command("rkt", "version").CombinedOutput()
-		if err == nil {
-			rktExists = true
-		}
-	})
-
-	if !rktExists {
-		t.Skip("Must have rkt installed for rkt specific tests to run")
 	}
 }
 

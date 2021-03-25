@@ -202,7 +202,7 @@ type DomainEventDeviceRemovalFailed struct {
 type DomainEventDeviceRemovalFailedCallback func(c *Connect, d *Domain, event *DomainEventDeviceRemovalFailed)
 
 type DomainEventMetadataChange struct {
-	Type  int
+	Type  DomainMetadataType
 	NSURI string
 }
 
@@ -216,6 +216,14 @@ type DomainEventBlockThreshold struct {
 }
 
 type DomainEventBlockThresholdCallback func(c *Connect, d *Domain, event *DomainEventBlockThreshold)
+
+type DomainEventMemoryFailure struct {
+	Recipient DomainMemoryFailureRecipientType
+	Action    DomainMemoryFailureActionType
+	Flags     DomainMemoryFailureFlags
+}
+
+type DomainEventMemoryFailureCallback func(c *Connect, d *Domain, event *DomainEventMemoryFailure)
 
 //export domainEventLifecycleCallback
 func domainEventLifecycleCallback(c C.virConnectPtr, d C.virDomainPtr,
@@ -328,13 +336,12 @@ func domainEventGraphicsCallback(c C.virConnectPtr, d C.virDomainPtr,
 	connection := &Connect{ptr: c}
 
 	subjectGo := make([]DomainEventGraphicsSubjectIdentity, 0)
-	nidentities := int(subject.nidentity)
-	identities := (*[1 << 30]C.virDomainEventGraphicsSubjectIdentity)(unsafe.Pointer(&subject.identities))[:nidentities:nidentities]
-	for _, identity := range identities {
+	for i := 0; i < int(subject.nidentity); i++ {
+		cidentity := *(**C.virDomainEventGraphicsSubjectIdentity)(unsafe.Pointer(uintptr(unsafe.Pointer(subject.identities)) + (unsafe.Sizeof(*subject.identities) * uintptr(i))))
 		subjectGo = append(subjectGo,
 			DomainEventGraphicsSubjectIdentity{
-				Type: C.GoString(identity._type),
-				Name: C.GoString(identity.name),
+				Type: C.GoString(cidentity._type),
+				Name: C.GoString(cidentity.name),
 			},
 		)
 	}
@@ -562,7 +569,7 @@ func domainEventMetadataChangeCallback(c C.virConnectPtr, d C.virDomainPtr,
 	connection := &Connect{ptr: c}
 
 	eventDetails := &DomainEventMetadataChange{
-		Type:  (int)(mtype),
+		Type:  DomainMetadataType(mtype),
 		NSURI: C.GoString(nsuri),
 	}
 	callbackFunc := getCallbackId(goCallbackId)
@@ -758,12 +765,12 @@ func countPinInfo(cparams C.virTypedParameterPtr, nparams C.int) (int, int) {
 	return maxvcpus + 1, maxiothreads + 1
 }
 
-func domainEventTunableGetPin(params C.virTypedParameterPtr, nparams C.int) *DomainEventTunableCpuPin {
+func domainEventTunableGetPin(params C.virTypedParameterPtr, cnparams C.int) *DomainEventTunableCpuPin {
 	var pin domainEventTunablePinTemp
-	numvcpus, numiothreads := countPinInfo(params, nparams)
+	numvcpus, numiothreads := countPinInfo(params, cnparams)
 	pinInfo := getDomainPinTempFieldInfo(numvcpus, numiothreads, &pin)
 
-	num, err := typedParamsUnpackLen(params, int(nparams), pinInfo)
+	num, err := typedParamsUnpack(params, cnparams, pinInfo)
 	if num == 0 || err != nil {
 		return nil
 	}
@@ -806,13 +813,13 @@ func domainEventTunableGetPin(params C.virTypedParameterPtr, nparams C.int) *Dom
 }
 
 //export domainEventTunableCallback
-func domainEventTunableCallback(c C.virConnectPtr, d C.virDomainPtr, params C.virTypedParameterPtr, nparams C.int, goCallbackId int) {
+func domainEventTunableCallback(c C.virConnectPtr, d C.virDomainPtr, params C.virTypedParameterPtr, cnparams C.int, goCallbackId int) {
 	domain := &Domain{ptr: d}
 	connection := &Connect{ptr: c}
 
 	eventDetails := &DomainEventTunable{}
 
-	pin := domainEventTunableGetPin(params, nparams)
+	pin := domainEventTunableGetPin(params, cnparams)
 	if pin != nil {
 		eventDetails.CpuPin = pin
 	}
@@ -820,7 +827,7 @@ func domainEventTunableCallback(c C.virConnectPtr, d C.virDomainPtr, params C.vi
 	var sched DomainSchedulerParameters
 	schedInfo := getDomainTuneSchedulerParametersFieldInfo(&sched)
 
-	num, _ := typedParamsUnpackLen(params, int(nparams), schedInfo)
+	num, _ := typedParamsUnpack(params, cnparams, schedInfo)
 	if num > 0 {
 		eventDetails.CpuSched = &sched
 	}
@@ -831,12 +838,12 @@ func domainEventTunableCallback(c C.virConnectPtr, d C.virDomainPtr, params C.vi
 			s:   &eventDetails.BlkdevDisk,
 		},
 	}
-	typedParamsUnpackLen(params, int(nparams), blknameInfo)
+	typedParamsUnpack(params, cnparams, blknameInfo)
 
 	var blktune DomainBlockIoTuneParameters
 	blktuneInfo := getTuneBlockIoTuneParametersFieldInfo(&blktune)
 
-	num, _ = typedParamsUnpackLen(params, int(nparams), blktuneInfo)
+	num, _ = typedParamsUnpack(params, cnparams, blktuneInfo)
 	if num > 0 {
 		eventDetails.BlkdevTune = &blktune
 	}
@@ -903,14 +910,14 @@ func domainEventMigrationIterationCallback(c C.virConnectPtr, d C.virDomainPtr, 
 }
 
 //export domainEventJobCompletedCallback
-func domainEventJobCompletedCallback(c C.virConnectPtr, d C.virDomainPtr, params C.virTypedParameterPtr, nparams C.int, goCallbackId int) {
+func domainEventJobCompletedCallback(c C.virConnectPtr, d C.virDomainPtr, params C.virTypedParameterPtr, cnparams C.int, goCallbackId int) {
 	domain := &Domain{ptr: d}
 	connection := &Connect{ptr: c}
 
 	eventDetails := &DomainEventJobCompleted{}
 	info := getDomainJobInfoFieldInfo(&eventDetails.Info)
 
-	typedParamsUnpackLen(params, int(nparams), info)
+	typedParamsUnpack(params, cnparams, info)
 
 	callbackFunc := getCallbackId(goCallbackId)
 	callback, ok := callbackFunc.(DomainEventJobCompletedCallback)
@@ -951,6 +958,25 @@ func domainEventBlockThresholdCallback(c C.virConnectPtr, d C.virDomainPtr, dev 
 	}
 	callbackFunc := getCallbackId(goCallbackId)
 	callback, ok := callbackFunc.(DomainEventBlockThresholdCallback)
+	if !ok {
+		panic("Inappropriate callback type called")
+	}
+	callback(connection, domain, eventDetails)
+
+}
+
+//export domainEventMemoryFailureCallback
+func domainEventMemoryFailureCallback(c C.virConnectPtr, d C.virDomainPtr, recipient C.int, action C.int, flags C.uint, goCallbackId int) {
+	domain := &Domain{ptr: d}
+	connection := &Connect{ptr: c}
+
+	eventDetails := &DomainEventMemoryFailure{
+		Recipient: DomainMemoryFailureRecipientType(recipient),
+		Action:    DomainMemoryFailureActionType(action),
+		Flags:     DomainMemoryFailureFlags(flags),
+	}
+	callbackFunc := getCallbackId(goCallbackId)
+	callback, ok := callbackFunc.(DomainEventMemoryFailureCallback)
 	if !ok {
 		panic("Inappropriate callback type called")
 	}
@@ -1449,6 +1475,26 @@ func (c *Connect) DomainEventBlockThresholdRegister(dom *Domain, callback Domain
 	var err C.virError
 	ret := C.virConnectDomainEventRegisterAnyWrapper(c.ptr, cdom,
 		C.VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD,
+		C.virConnectDomainEventGenericCallback(callbackPtr),
+		C.long(goCallBackId), &err)
+	if ret == -1 {
+		freeCallbackId(goCallBackId)
+		return 0, makeError(&err)
+	}
+	return int(ret), nil
+}
+
+func (c *Connect) DomainEventMemoryFailureRegister(dom *Domain, callback DomainEventMemoryFailureCallback) (int, error) {
+	goCallBackId := registerCallbackId(callback)
+
+	callbackPtr := unsafe.Pointer(C.domainEventMemoryFailureCallbackHelper)
+	var cdom C.virDomainPtr
+	if dom != nil {
+		cdom = dom.ptr
+	}
+	var err C.virError
+	ret := C.virConnectDomainEventRegisterAnyWrapper(c.ptr, cdom,
+		C.VIR_DOMAIN_EVENT_ID_MEMORY_FAILURE,
 		C.virConnectDomainEventGenericCallback(callbackPtr),
 		C.long(goCallBackId), &err)
 	if ret == -1 {

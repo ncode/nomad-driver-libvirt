@@ -38,7 +38,7 @@ import (
 	"unsafe"
 )
 
-type DomainSnapshotCreateFlags int
+type DomainSnapshotCreateFlags uint
 
 const (
 	DOMAIN_SNAPSHOT_CREATE_REDEFINE    = DomainSnapshotCreateFlags(C.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
@@ -50,9 +50,10 @@ const (
 	DOMAIN_SNAPSHOT_CREATE_QUIESCE     = DomainSnapshotCreateFlags(C.VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE)
 	DOMAIN_SNAPSHOT_CREATE_ATOMIC      = DomainSnapshotCreateFlags(C.VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC)
 	DOMAIN_SNAPSHOT_CREATE_LIVE        = DomainSnapshotCreateFlags(C.VIR_DOMAIN_SNAPSHOT_CREATE_LIVE)
+	DOMAIN_SNAPSHOT_CREATE_VALIDATE    = DomainSnapshotCreateFlags(C.VIR_DOMAIN_SNAPSHOT_CREATE_VALIDATE)
 )
 
-type DomainSnapshotListFlags int
+type DomainSnapshotListFlags uint
 
 const (
 	DOMAIN_SNAPSHOT_LIST_ROOTS       = DomainSnapshotListFlags(C.VIR_DOMAIN_SNAPSHOT_LIST_ROOTS)
@@ -66,9 +67,10 @@ const (
 	DOMAIN_SNAPSHOT_LIST_DISK_ONLY   = DomainSnapshotListFlags(C.VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY)
 	DOMAIN_SNAPSHOT_LIST_INTERNAL    = DomainSnapshotListFlags(C.VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL)
 	DOMAIN_SNAPSHOT_LIST_EXTERNAL    = DomainSnapshotListFlags(C.VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL)
+	DOMAIN_SNAPSHOT_LIST_TOPOLOGICAL = DomainSnapshotListFlags(C.VIR_DOMAIN_SNAPSHOT_LIST_TOPOLOGICAL)
 )
 
-type DomainSnapshotRevertFlags int
+type DomainSnapshotRevertFlags uint
 
 const (
 	DOMAIN_SNAPSHOT_REVERT_RUNNING = DomainSnapshotRevertFlags(C.VIR_DOMAIN_SNAPSHOT_REVERT_RUNNING)
@@ -76,12 +78,18 @@ const (
 	DOMAIN_SNAPSHOT_REVERT_FORCE   = DomainSnapshotRevertFlags(C.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
 )
 
-type DomainSnapshotDeleteFlags int
+type DomainSnapshotDeleteFlags uint
 
 const (
 	DOMAIN_SNAPSHOT_DELETE_CHILDREN      = DomainSnapshotDeleteFlags(C.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
 	DOMAIN_SNAPSHOT_DELETE_METADATA_ONLY = DomainSnapshotDeleteFlags(C.VIR_DOMAIN_SNAPSHOT_DELETE_METADATA_ONLY)
 	DOMAIN_SNAPSHOT_DELETE_CHILDREN_ONLY = DomainSnapshotDeleteFlags(C.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN_ONLY)
+)
+
+type DomainSnapshotXMLFlags uint
+
+const (
+	DOMAIN_SNAPSHOT_XML_SECURE = DomainSnapshotXMLFlags(C.VIR_DOMAIN_SNAPSHOT_XML_SECURE)
 )
 
 type DomainSnapshot struct {
@@ -155,7 +163,7 @@ func (s *DomainSnapshot) HasMetadata(flags uint32) (bool, error) {
 }
 
 // See also https://libvirt.org/html/libvirt-libvirt-domain-snapshot.html#virDomainSnapshotGetXMLDesc
-func (s *DomainSnapshot) GetXMLDesc(flags DomainXMLFlags) (string, error) {
+func (s *DomainSnapshot) GetXMLDesc(flags DomainSnapshotXMLFlags) (string, error) {
 	var err C.virError
 	result := C.virDomainSnapshotGetXMLDescWrapper(s.ptr, C.uint(flags), &err)
 	if result == nil {

@@ -26,6 +26,10 @@ type AutopilotConfig struct {
 	// be behind before being considered unhealthy.
 	MaxTrailingLogs int `hcl:"max_trailing_logs"`
 
+	// MinQuorum sets the minimum number of servers required in a cluster
+	// before autopilot can prune dead servers.
+	MinQuorum int `hcl:"min_quorum"`
+
 	// (Enterprise-only) EnableRedundancyZones specifies whether to enable redundancy zones.
 	EnableRedundancyZones *bool `hcl:"enable_redundancy_zones"`
 
@@ -61,11 +65,20 @@ func (a *AutopilotConfig) Merge(b *AutopilotConfig) *AutopilotConfig {
 	if b.ServerStabilizationTime != 0 {
 		result.ServerStabilizationTime = b.ServerStabilizationTime
 	}
+	if b.ServerStabilizationTimeHCL != "" {
+		result.ServerStabilizationTimeHCL = b.ServerStabilizationTimeHCL
+	}
 	if b.LastContactThreshold != 0 {
 		result.LastContactThreshold = b.LastContactThreshold
 	}
+	if b.LastContactThresholdHCL != "" {
+		result.LastContactThresholdHCL = b.LastContactThresholdHCL
+	}
 	if b.MaxTrailingLogs != 0 {
 		result.MaxTrailingLogs = b.MaxTrailingLogs
+	}
+	if b.MinQuorum != 0 {
+		result.MinQuorum = b.MinQuorum
 	}
 	if b.EnableRedundancyZones != nil {
 		result.EnableRedundancyZones = b.EnableRedundancyZones
